@@ -13,6 +13,8 @@ output: html_notebook
 library(tidyverse)
 ```
 
+------------------------------------------------------------------------
+
 # Dog breeds dataset
 
 Download data to RStudio environment:
@@ -199,7 +201,7 @@ ggradar(grid.min = 1,                    #minumum trait value
 
 -   legend.position = "left")
 
-## Circular barplot with ggplot2 
+## Circular barplot with ggplot2
 
 Rotate table.
 
@@ -269,15 +271,19 @@ annotate(
 
 ```
 
+------------------------------------------------------------------------
+
 # Board games dataset
 
 Download data from Github.
+
 ```{r}
 game_ratings = readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-01-25/ratings.csv')
 game_details = readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-01-25/details.csv')
 ```
 
 Create a dataset joining some columns from ratings and details.
+
 ```{r}
 
 games = left_join ( 
@@ -302,6 +308,7 @@ games = left_join (
 ```
 
 Find 5 most popular game categories
+
 ```{r}
 top_games <- games %>%
   group_by(boardgamecategory) %>%   #group by category
@@ -312,6 +319,7 @@ top_games
 ```
 
 Filter games from the most popular categories
+
 ```{r}
 games <- games %>%
   filter(boardgamecategory == top_games$boardgamecategory)
@@ -320,14 +328,16 @@ games <- games %>%
 
 ## Half-Eye Plot
 
-https://cran.r-project.org/web/packages/ggdist/vignettes/slabinterval.html
+<https://cran.r-project.org/web/packages/ggdist/vignettes/slabinterval.html>
 
 Requires ggdist package.
+
 ```{r}
 library(ggdist)
 ```
 
 Plot
+
 ```{r}
 ggplot(games, aes(x = average, y = boardgamecategory)) +        
 
@@ -336,5 +346,106 @@ ggplot(games, aes(x = average, y = boardgamecategory)) +
   stat_pointinterval(.width = c(.5, .95)) +     #define the confidence intervals for the bars
 
   theme_test()  
+```
+
+------------------------------------------------------------------------
+
+# Erasmus students mobility dataset
+
+Download data from Github.
+
+```{r}
+erasmus <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-03-08/erasmus.csv')
+```
+
+```{r}
+erasmusmob = erasmus %>%
+
+  #select columns of interest
+  select(sending_country_code, receiving_country_code, participants, ) %>%
+  
+  # rename columns 
+  rename("from" = "sending_country_code",
+         "to" = "receiving_country_code",
+          "n" = "participants")%>% 
+  # group rows by from-to combinations
+  group_by (from, to) %>% 
+  
+  # sum up rows with same from-to combination
+  summarise (sum = sum(n)) %>%
+  
+  # filter out cases of inland mobility
+  filter(from != to) %>%
+  
+  # filter combinations with more than 100 participants
+  filter(sum>100)
+        
+```
+
+## Sankey diagram
+
+```{r}
+library(networkD3)
+```
+
+Create the nodes
+```{r}
+nodes <- data.frame(name=c(as.character(erasmusmob$from), 
+                           as.character(erasmusmob$to)) 
+                    %>% unique())
+```
+
+Create IDs for country of origin and destination
+```{r}
+erasmusmob$IDfrom=match(erasmusmob$from, nodes$name)-1 
+erasmusmob$IDto=match(erasmusmob$to, nodes$name)-1
+```
+
+Sankey diagram  
+```{r}
+sankeyNetwork(Links = erasmusmob, 
+              Nodes = nodes,
+              Source = "IDfrom", 
+              Target = "IDto",
+              Value = "sum", 
+              NodeID = "name", 
+              sinksRight=FALSE, 
+              #colourScale=ColourScal, 
+              nodeWidth=20, 
+              fontSize=13, 
+              nodePadding=7
+             )
+```
+Note: Sankey diagrams organize the targets based on the proximity to the origin. For keeping all targets on the right side, we must use an alluvial plot.
+
+## Alluvial plot
+
+```{r}
+library(ggforce)
+```
+
+Prepare dataset with ggforce helper funtion.
+```{r}
+erasmusmob = erasmusmob  %>%
+  gather_set_data(1:2) %>%        
+  arrange(x,from,desc(to))
+```
+
+Alluvial plot. x, id and y must remain the same, as they are created by ggforce helper function. Only thing to change is the value.
+```{r}
+ggplot(erasmusmob, aes(x = x, id = id, split = y, value = sum)) + 
+  geom_parallel_sets(aes(fill = from),        #color flow according to origin
+                     alpha=0.3,axis.width = 0.25, 
+                     n=100,strength = 0.3) +  # n and strength change how curvy the flow is
+  geom_parallel_sets_axes(axis.width = 0.25,  # add boxes for origin and target
+                          fill = "gray95", color = "gray80") +
+  geom_parallel_sets_labels(colour = 'gray35', size = 4, angle = 0) + #add text
+  theme_minimal() +
+  theme(legend.position = "none",            # removes legend
+        panel.grid.major = element_blank(),  # removes lines
+        panel.grid.minor = element_blank(),  # removes lines
+        axis.text.y = element_blank(),       # removes y axis text
+        axis.text.x = element_text(size = 14), # x axis font size
+        axis.title.x  = element_blank())      # removes x axis title
 ```
 
